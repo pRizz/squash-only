@@ -2,6 +2,12 @@
 
 A bash script to automatically configure all your GitHub repositories to use squash-only merge strategy.
 
+## Quick start
+
+```bash
+npx squash-only
+```
+
 ## What it does
 
 This script updates all repositories you own on GitHub to:
