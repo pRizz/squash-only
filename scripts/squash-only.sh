@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 set -uo pipefail
 
 SLEEP_SECS=0.2
