@@ -18,6 +18,8 @@ It automatically skips repositories you don't own and provides a summary of the 
 - `jq`
 - GitHub authentication (see below)
 
+**Note:** If using the Node.js binary wrapper, you'll also need Node.js installed.
+
 ## Authentication
 
 The script supports three methods for GitHub authentication (in order of preference):
@@ -42,16 +44,73 @@ If neither of the above are available, the script will display instructions for 
 **Required PAT permissions:**
 - `repo` (Full control of private repositories)
 
-## Usage
+## Installation & Usage
+
+You can run this tool in several ways:
+
+### Option 1: Using npx (Recommended - No Installation Required)
+
+Run directly from the GitHub repository without installing:
+```bash
+npx github:pRizz/squash-only
+```
+
+With custom sleep interval:
+```bash
+npx github:pRizz/squash-only --sleep 0.5
+```
+
+**Note:** If the package is published to npm, you can also use:
+```bash
+npx squash-only
+```
+
+### Option 2: Using the Bash Script Directly
+
+Run the bash script directly:
+```bash
+./scripts/squash-only.sh
+```
+
+With custom sleep interval:
+```bash
+./scripts/squash-only.sh --sleep 0.5
+# or
+./scripts/squash-only.sh -s 1.0
+```
+
+### Option 3: Install Globally via npm/pnpm
+
+Install the package globally:
+```bash
+npm install -g squash-only
+# or
+pnpm install -g squash-only
+```
+
+Then run it from anywhere:
+```bash
+squash-only
+```
+
+## Usage Examples
 
 ### Basic usage
 ```bash
+# Using npx (recommended)
+npx github:pRizz/squash-only
+
+# Or using the bash script directly
 ./scripts/squash-only.sh
 ```
 
 ### Custom sleep interval
 Control the delay between API requests (default: 0.2 seconds):
 ```bash
+# Using npx
+npx github:pRizz/squash-only --sleep 0.5
+
+# Or using the bash script
 ./scripts/squash-only.sh --sleep 0.5
 # or
 ./scripts/squash-only.sh -s 1.0
@@ -94,15 +153,27 @@ Summary:
 
 Update all your repos with default settings:
 ```bash
+# Using npx (recommended)
+npx github:pRizz/squash-only
+
+# Or using the bash script
 ./scripts/squash-only.sh
 ```
 
 Update with a longer delay between requests:
 ```bash
+# Using npx
+npx github:pRizz/squash-only --sleep 1.0
+
+# Or using the bash script
 ./scripts/squash-only.sh --sleep 1.0
 ```
 
 Use with environment variable:
 ```bash
+# Using npx
+GITHUB_TOKEN=ghp_xxxxx npx github:pRizz/squash-only
+
+# Or using the bash script
 GITHUB_TOKEN=ghp_xxxxx ./scripts/squash-only.sh
 ```

@@ -2,7 +2,19 @@
   "name": "squash-only",
   "version": "1.0.0",
   "description": "Scripts for making all your repos on GitHub Squash Only!",
-  "main": "index.js",
+  "bin": {
+    "squash-only": "./bin/squash-only.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "preferGlobal": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -11,7 +23,13 @@
     "url": "git+https://github.com/pRizz/squash-only.git"
   },
   "keywords": [
-    "squash"
+    "squash",
+    "github",
+    "merge",
+    "squash-merge",
+    "cli",
+    "automation",
+    "git"
   ],
   "author": "Peter Ryszkiewicz",
   "license": "MIT",
