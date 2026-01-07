@@ -36,11 +36,11 @@ require_cmd() {
   fi
 }
 
-require_bash_4_plus() {
-  # macOS ships bash 3.2 by default; this script expects bash 4+.
+warn_if_old_bash() {
+  # Some platforms (notably older macOS installs) default to bash 3.2.
+  # This script should still work on bash 3+, but warn to reduce surprises.
   if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
-    echo "❌ Error: bash 4+ is required (found: ${BASH_VERSION:-unknown})"
-    return 1
+    echo "⚠️  Warning: detected bash < 4 (${BASH_VERSION:-unknown}). If you hit issues, run with bash 4+."
   fi
 }
 
@@ -222,7 +222,7 @@ parse_args() {
 }
 
 main() {
-  require_bash_4_plus || exit 1
+  warn_if_old_bash
   require_cmd curl || exit 1
   require_cmd jq || exit 1
 
