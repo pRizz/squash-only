@@ -7,7 +7,7 @@
   },
   "files": [
     "bin",
-    "scripts",
+    "scripts/squash-only.sh",
     "README.md",
     "LICENSE"
   ],
