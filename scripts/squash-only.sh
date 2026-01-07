@@ -17,13 +17,32 @@ trap cleanup EXIT
 
 # Handle termination signals
 handle_exit() {
+  if [ "$SHOULD_EXIT" -eq 1 ]; then
+    # Second Ctrl-C: bail immediately.
+    exit 130
+  fi
+
   SHOULD_EXIT=1
   echo ""
-  echo "⚠️  Interrupted. Cleaning up..."
-  cleanup
-  exit 130
+  echo "⚠️  Interrupted. Finishing current step then stopping..."
 }
 trap handle_exit INT TERM
+
+require_cmd() {
+  local cmd=$1
+  if ! command -v "$cmd" &> /dev/null; then
+    echo "❌ Error: Required command not found: $cmd"
+    return 1
+  fi
+}
+
+warn_if_old_bash() {
+  # Some platforms (notably older macOS installs) default to bash 3.2.
+  # This script should still work on bash 3+, but warn to reduce surprises.
+  if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+    echo "⚠️  Warning: detected bash < 4 (${BASH_VERSION:-unknown}). If you hit issues, run with bash 4+."
+  fi
+}
 
 get_github_token() {
   # Check if GITHUB_TOKEN is already in environment
@@ -106,7 +125,7 @@ process_repo() {
     -X PATCH \
     -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github+json" \
-    https://api.github.com/repos/$repo \
+    "https://api.github.com/repos/$repo" \
     -d '{
       "allow_merge_commit": false,
       "allow_rebase_merge": false,
@@ -153,10 +172,12 @@ fetch_all_repos() {
       break
     fi
 
-    echo "$body" | jq -r '.[] | "\(.full_name)|\(.owner.login)"' | while IFS='|' read -r repo owner; do
+    # NOTE: Avoid a pipeline into `while` here; that runs the loop in a subshell and
+    # breaks exit/interrupt handling and control flow.
+    while IFS='|' read -r repo owner; do
       [ "$SHOULD_EXIT" -eq 1 ] && break
       process_repo "$repo" "$owner" || break
-    done
+    done < <(echo "$body" | jq -r '.[] | "\(.full_name)|\(.owner.login)"')
 
     [ "$SHOULD_EXIT" -eq 1 ] && break
 
@@ -201,6 +222,10 @@ parse_args() {
 }
 
 main() {
+  warn_if_old_bash
+  require_cmd curl || exit 1
+  require_cmd jq || exit 1
+
   parse_args "$@"
 
   # Initialize counters
@@ -255,6 +280,10 @@ main() {
     echo "  ⏱️  Elapsed time: ${ELAPSED_MIN}m ${ELAPSED_SEC}s"
   else
     echo "  ⏱️  Elapsed time: ${ELAPSED}s"
+  fi
+
+  if [ "$SHOULD_EXIT" -eq 1 ]; then
+    exit 130
   fi
 }
 
