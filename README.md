@@ -79,7 +79,26 @@ With custom sleep interval:
 ./scripts/squash-only.sh -s 1.0
 ```
 
-### Option 3: Install Globally via npm/pnpm
+### Option 3: Run Locally with npm (Development)
+
+If you've cloned the repository, you can run it locally using npm scripts:
+```bash
+npm start
+# or
+npm run squash-only
+```
+
+With custom sleep interval:
+```bash
+npm start -- --sleep 0.5
+```
+
+You can also use `npx` to run the local version:
+```bash
+npx .
+```
+
+### Option 4: Install Globally via npm/pnpm
 
 Install the package globally:
 ```bash
@@ -100,6 +119,9 @@ squash-only
 # Using npx (recommended)
 npx github:pRizz/squash-only
 
+# Or run locally with npm
+npm start
+
 # Or using the bash script directly
 ./scripts/squash-only.sh
 ```
@@ -109,6 +131,9 @@ Control the delay between API requests (default: 0.2 seconds):
 ```bash
 # Using npx
 npx github:pRizz/squash-only --sleep 0.5
+
+# Or run locally with npm
+npm start -- --sleep 0.5
 
 # Or using the bash script
 ./scripts/squash-only.sh --sleep 0.5
@@ -156,6 +181,9 @@ Update all your repos with default settings:
 # Using npx (recommended)
 npx github:pRizz/squash-only
 
+# Or run locally with npm
+npm start
+
 # Or using the bash script
 ./scripts/squash-only.sh
 ```
@@ -173,6 +201,9 @@ Use with environment variable:
 ```bash
 # Using npx
 GITHUB_TOKEN=ghp_xxxxx npx github:pRizz/squash-only
+
+# Or run locally with npm
+GITHUB_TOKEN=ghp_xxxxx npm start
 
 # Or using the bash script
 GITHUB_TOKEN=ghp_xxxxx ./scripts/squash-only.sh

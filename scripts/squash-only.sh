@@ -2,6 +2,7 @@
 set -uo pipefail
 
 SLEEP_SECS=0.2
+SHOULD_EXIT=0
 
 # Temporary files for tracking counts across subshells
 SUCCESS_COUNT_FILE=$(mktemp)
@@ -12,6 +13,16 @@ cleanup() {
   rm -f "$SUCCESS_COUNT_FILE" "$SKIP_COUNT_FILE" "$FAILED_COUNT_FILE"
 }
 trap cleanup EXIT
+
+# Handle termination signals
+handle_exit() {
+  SHOULD_EXIT=1
+  echo ""
+  echo "⚠️  Interrupted. Cleaning up..."
+  cleanup
+  exit 130
+}
+trap handle_exit INT TERM
 
 get_github_token() {
   # Check if GITHUB_TOKEN is already in environment
@@ -72,6 +83,9 @@ process_repo() {
   local repo=$1
   local owner=$2
 
+  # Check if we should exit
+  [ "$SHOULD_EXIT" -eq 1 ] && return 1
+
   if [ -z "$repo" ] || [ "$repo" = "null" ]; then
     return 0
   fi
@@ -87,7 +101,7 @@ process_repo() {
   echo "Updating repo: $repo"
 
   local http_code
-  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+  http_code=$(curl -s --max-time 30 -o /dev/null -w "%{http_code}" \
     -X PATCH \
     -H "Authorization: token $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github+json" \
@@ -98,6 +112,9 @@ process_repo() {
       "allow_squash_merge": true
     }')
 
+  # Check if we should exit after curl
+  [ "$SHOULD_EXIT" -eq 1 ] && return 1
+
   if [ "$http_code" -eq 200 ]; then
     echo "✅ Success ($http_code)"
     echo "   https://github.com/$repo"
@@ -106,6 +123,9 @@ process_repo() {
     echo "❌ Failed ($http_code)"
     increment_counter "$FAILED_COUNT_FILE"
   fi
+
+  # Check again before sleeping
+  [ "$SHOULD_EXIT" -eq 1 ] && return 1
 
   echo "Sleeping ${SLEEP_SECS}s…"
   sleep "$SLEEP_SECS"
@@ -116,9 +136,15 @@ fetch_all_repos() {
   local per_page=100
 
   while true; do
+    # Check if we should exit
+    [ "$SHOULD_EXIT" -eq 1 ] && break
+
     local body
-    body=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    body=$(curl -s --max-time 30 -H "Authorization: token $GITHUB_TOKEN" \
       "https://api.github.com/user/repos?per_page=$per_page&page=$page")
+
+    # Check if we should exit after curl
+    [ "$SHOULD_EXIT" -eq 1 ] && break
 
     local repo_count
     repo_count=$(echo "$body" | jq '. | length')
@@ -127,8 +153,11 @@ fetch_all_repos() {
     fi
 
     echo "$body" | jq -r '.[] | "\(.full_name)|\(.owner.login)"' | while IFS='|' read -r repo owner; do
-      process_repo "$repo" "$owner"
+      [ "$SHOULD_EXIT" -eq 1 ] && break
+      process_repo "$repo" "$owner" || break
     done
+
+    [ "$SHOULD_EXIT" -eq 1 ] && break
 
     if [ "$repo_count" -lt "$per_page" ]; then
       break
@@ -190,8 +219,11 @@ main() {
   fi
 
   echo "Fetching your username…"
-  GITHUB_USER=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  GITHUB_USER=$(curl -s --max-time 30 -H "Authorization: token $GITHUB_TOKEN" \
     https://api.github.com/user | jq -r '.login')
+  
+  # Check if we should exit
+  [ "$SHOULD_EXIT" -eq 1 ] && exit 130
 
   if [ -z "$GITHUB_USER" ] || [ "$GITHUB_USER" = "null" ]; then
     echo "❌ Failed to get GitHub username"

@@ -16,6 +16,8 @@
   },
   "preferGlobal": true,
   "scripts": {
+    "start": "node bin/squash-only.js",
+    "squash-only": "node bin/squash-only.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
