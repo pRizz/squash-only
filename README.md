@@ -19,12 +19,14 @@ It automatically skips repositories you don't own and provides a summary of the 
 
 ## Requirements
 
-- `bash` (version 4+)
+- `bash` (version 3+; 4+ recommended)
 - `curl`
 - `jq`
 - GitHub authentication (see below)
 
 **Note:** If using the Node.js binary wrapper, you'll also need Node.js installed.
+
+**macOS note:** Some macOS installations default to bash 3.2. The script should still work, but if you hit shell-related issues, try running with bash 4+.
 
 ## Authentication
 
