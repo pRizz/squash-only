@@ -9,10 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Extract version from package.json
-# Note: Using [[:space:]] instead of \s for POSIX compatibility.
-# macOS uses BSD sed which doesn't support \s, while GNU sed (Linux) does.
-# [[:space:]] works on both BSD and GNU sed.
-VERSION=$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$PROJECT_ROOT/package.json" | head -1)
+VERSION=$(jq -r '.version' "$PROJECT_ROOT/package.json")
 
 if [ -z "$VERSION" ]; then
     echo "Error: Could not extract version from package.json" >&2
