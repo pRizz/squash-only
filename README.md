@@ -1,6 +1,6 @@
 # squash-only
 
-A hybrid Node.js/bash script to automatically configure all your GitHub repositories to use squash-only merge strategy.
+A hybrid Node.js/bash script to automatically configure all your GitHub repositories to use squash-only merge strategy, which is obviously the best merge strategy.
 
 ## Quick start
 
