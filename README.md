@@ -192,7 +192,7 @@ npx github:pRizz/squash-only --force --sleep 0.5
 
 ## Options
 
-- `-s, --sleep SECONDS` - Set the sleep interval between API requests (must be a number)
+- `-s, --sleep SECONDS` - Set the sleep interval between API requests (default: 0.1 seconds). This delay helps prevent triggering GitHub's rate limits. Authenticated requests (OAuth or PAT) are limited to ~5,000 requests per hour per user or app. See [GitHub's API rate limits documentation](https://github.com/orgs/community/discussions/163553) for more details.
 - `-f, --force` - Process all repositories, including those already configured for squash-only (default: skip already configured repos)
 
 ## Features
@@ -212,6 +212,8 @@ This script uses a hybrid approach for GitHub API access:
 - **GraphQL API** - Used to fetch repositories and their merge strategies in a single, efficient query with cursor-based pagination. This allows us to retrieve all repository information and merge strategy settings in fewer API calls.
 
 - **REST API** - Used to update repository merge strategies. As of January 11, 2026, the GitHub GraphQL API does not support mutations for repository merge strategy settings, so the REST API is required for this operation. Therefore, we must call the REST endpoint for each repository individually to update its merge strategy settings.
+
+- **Rate Limiting** - To avoid hitting GitHub's API rate limits, the script includes a configurable sleep interval between REST API requests (default: 0.1 seconds). Authenticated requests (OAuth or PAT) are limited to ~5,000 requests per hour per user or app. The sleep delay helps ensure we stay well below this limit when processing large numbers of repositories. See [GitHub's API rate limits documentation](https://github.com/orgs/community/discussions/163553) for more details.
 
 ## Output
 

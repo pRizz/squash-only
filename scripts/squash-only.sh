@@ -2,7 +2,7 @@
 
 set -uo pipefail
 
-SLEEP_SECS=0.2
+SLEEP_SECS=0.1
 SHOULD_EXIT=0
 
 # Temporary files for tracking counts across subshells
