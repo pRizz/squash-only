@@ -1,6 +1,6 @@
 {
   "name": "squash-only",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Scripts for making all your repos on GitHub Squash Only!",
   "bin": {
     "squash-only": "./bin/squash-only.js"
