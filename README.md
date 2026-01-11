@@ -15,7 +15,11 @@ This script updates all repositories you own on GitHub to:
 - ❌ Disable merge commits
 - ❌ Disable rebase merges
 
-It automatically skips repositories you don't own and provides a summary of the results.
+It automatically:
+- Skips repositories you don't own
+- Skips repositories that are already configured for squash-only (efficient reruns; no unnecessary network requests)
+- Only processes repositories that need updating
+- Provides a summary of the results
 
 ## Requirements
 
@@ -68,6 +72,11 @@ With custom sleep interval:
 npx github:pRizz/squash-only --sleep 0.5
 ```
 
+With force flag (process all repos, including already squash-only):
+```bash
+npx github:pRizz/squash-only --force
+```
+
 **Note:** If the package is published to npm, you can also use:
 ```bash
 npx squash-only
@@ -87,6 +96,13 @@ With custom sleep interval:
 ./scripts/squash-only.sh -s 1.0
 ```
 
+With force flag (process all repos, including already squash-only):
+```bash
+./scripts/squash-only.sh --force
+# or
+./scripts/squash-only.sh -f
+```
+
 ### Option 3: Run Locally with npm (Development)
 
 If you've cloned the repository, you can run it locally using npm scripts:
@@ -99,6 +115,11 @@ npm run squash-only
 With custom sleep interval:
 ```bash
 npm start -- --sleep 0.5
+```
+
+With force flag:
+```bash
+npm start -- --force
 ```
 
 You can also use `npx` to run the local version:
@@ -149,16 +170,38 @@ npm start -- --sleep 0.5
 ./scripts/squash-only.sh -s 1.0
 ```
 
+### Force mode
+Process all repositories, including those already configured for squash-only:
+```bash
+# Using npx
+npx github:pRizz/squash-only --force
+
+# Or run locally with npm
+npm start -- --force
+
+# Or using the bash script
+./scripts/squash-only.sh --force
+# or
+./scripts/squash-only.sh -f
+```
+
+Combine options:
+```bash
+npx github:pRizz/squash-only --force --sleep 0.5
+```
+
 ## Options
 
 - `-s, --sleep SECONDS` - Set the sleep interval between API requests (must be a number)
+- `-f, --force` - Process all repositories, including those already configured for squash-only (default: skip already configured repos)
 
 ## Features
 
 - 🔐 **Automatic authentication** - Tries multiple authentication methods
 - 📄 **Pagination support** - Handles users with 100+ repositories
 - 🔍 **Ownership filtering** - Only updates repositories you own
-- 📊 **Progress tracking** - Shows success, skipped, and failed counts
+- ⚡ **Smart skipping** - Automatically skips repositories already configured for squash-only (efficient reruns and new repo handling)
+- 📊 **Progress tracking** - Shows success, skipped, already configured, and failed counts
 - ⏱️ **Performance metrics** - Displays elapsed time
 - 🛡️ **Error handling** - Validates inputs and provides clear error messages
 
@@ -169,6 +212,7 @@ The script provides:
 - Success/failure status for each update
 - A summary at the end showing:
   - Number of successfully updated repositories
+  - Number of repositories already configured for squash-only (skipped)
   - Number of skipped repositories (not owned by you)
   - Number of failed updates (if any)
   - Total elapsed time
@@ -177,9 +221,10 @@ Example output:
 ```
 ────────────────────────────────────
 Summary:
-  ✅ Successfully updated: 15
-  ⏭️  Skipped: 3
-  ⏱️  Elapsed time: 2m 30s
+  ✅ Successfully updated: 5
+  ⏭️  Already squash-only (skipped): 10
+  ⏭️  Skipped (not owned by you): 3
+  ⏱️  Elapsed time: 1m 15s
 ```
 
 ## Examples
@@ -203,6 +248,15 @@ npx github:pRizz/squash-only --sleep 1.0
 
 # Or using the bash script
 ./scripts/squash-only.sh --sleep 1.0
+```
+
+Force update all repositories (including already configured):
+```bash
+# Using npx
+npx github:pRizz/squash-only --force
+
+# Or using the bash script
+./scripts/squash-only.sh --force
 ```
 
 Use with environment variable:

@@ -9,9 +9,13 @@ SHOULD_EXIT=0
 SUCCESS_COUNT_FILE=$(mktemp)
 SKIP_COUNT_FILE=$(mktemp)
 FAILED_COUNT_FILE=$(mktemp)
+ALREADY_SQUASH_ONLY_COUNT_FILE=$(mktemp)
+
+# Flag to force processing all repos even if they already have squash-only enabled
+FORCE_FLAG=0
 
 cleanup() {
-  rm -f "$SUCCESS_COUNT_FILE" "$SKIP_COUNT_FILE" "$FAILED_COUNT_FILE"
+  rm -f "$SUCCESS_COUNT_FILE" "$SKIP_COUNT_FILE" "$FAILED_COUNT_FILE" "$ALREADY_SQUASH_ONLY_COUNT_FILE"
 }
 trap cleanup EXIT
 
@@ -99,9 +103,36 @@ increment_counter() {
   echo $((current + 1)) > "$counter_file"
 }
 
+is_squash_only() {
+  local allow_squash_merge=$1
+  local allow_merge_commit=$2
+  local allow_rebase_merge=$3
+
+  # Treat empty, "null", or missing values as false
+  [ -z "$allow_squash_merge" ] && allow_squash_merge="false"
+  [ "$allow_squash_merge" = "null" ] && allow_squash_merge="false"
+  [ -z "$allow_merge_commit" ] && allow_merge_commit="false"
+  [ "$allow_merge_commit" = "null" ] && allow_merge_commit="false"
+  [ -z "$allow_rebase_merge" ] && allow_rebase_merge="false"
+  [ "$allow_rebase_merge" = "null" ] && allow_rebase_merge="false"
+
+  # Normalize case (in case of unexpected casing)
+  allow_squash_merge=$(echo "$allow_squash_merge" | tr '[:upper:]' '[:lower:]')
+  allow_merge_commit=$(echo "$allow_merge_commit" | tr '[:upper:]' '[:lower:]')
+  allow_rebase_merge=$(echo "$allow_rebase_merge" | tr '[:upper:]' '[:lower:]')
+
+  if [ "$allow_squash_merge" = "true" ] && [ "$allow_merge_commit" = "false" ] && [ "$allow_rebase_merge" = "false" ]; then
+    return 0
+  fi
+  return 1
+}
+
 process_repo() {
   local repo=$1
   local owner=$2
+  local allow_squash_merge=$3
+  local allow_merge_commit=$4
+  local allow_rebase_merge=$5
 
   # Check if we should exit
   [ "$SHOULD_EXIT" -eq 1 ] && return 1
@@ -117,8 +148,20 @@ process_repo() {
     return 0
   fi
 
+  # Check if repo already has squash-only enabled
+  if [ "$FORCE_FLAG" -eq 0 ] && is_squash_only "$allow_squash_merge" "$allow_merge_commit" "$allow_rebase_merge"; then
+    echo "────────────────────────────────────"
+    echo "⏭️  Skipping repo: $repo (already squash-only)"
+    increment_counter "$ALREADY_SQUASH_ONLY_COUNT_FILE"
+    return 0
+  fi
+
   echo "────────────────────────────────────"
-  echo "Updating repo: $repo"
+  if [ "$FORCE_FLAG" -eq 1 ] && is_squash_only "$allow_squash_merge" "$allow_merge_commit" "$allow_rebase_merge"; then
+    echo "Updating repo: $repo (forced, already squash-only)"
+  else
+    echo "Updating repo: $repo"
+  fi
 
   local http_code
   http_code=$(curl -s --max-time 30 -o /dev/null -w "%{http_code}" \
@@ -151,42 +194,174 @@ process_repo() {
   sleep "$SLEEP_SECS"
 }
 
-fetch_all_repos() {
-  local page=1
-  local per_page=100
+# Executes a GraphQL query and returns the response
+execute_graphql_query() {
+  local query=$1
+  local variables_json=$2
+
+  local payload
+  if [ -n "$variables_json" ]; then
+    payload=$(jq -n \
+      --arg query "$query" \
+      --argjson variables "$variables_json" \
+      '{query: $query, variables: $variables}')
+  else
+    payload=$(jq -n \
+      --arg query "$query" \
+      '{query: $query}')
+  fi
+
+  local response
+  response=$(curl -sS --max-time 30 \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/vnd.github+json" \
+    https://api.github.com/graphql \
+    -d "$payload")
+
+  # Check for GraphQL errors
+  local errors
+  errors=$(echo "$response" | jq -r '.errors // empty')
+  if [ -n "$errors" ]; then
+    echo "GraphQL error: $errors" >&2
+    return 1
+  fi
+
+  echo "$response"
+}
+
+# Fetches all repos with merge strategies for a given owner using GraphQL
+# Uses repositoryOwner query with pagination
+# Returns JSON array with repos and their merge strategy info
+fetch_repos_with_strategies() {
+  local owner=$1
+
+  read -r -d '' QUERY <<'GRAPHQL'
+query($login: String!, $first: Int!, $after: String) {
+  repositoryOwner(login: $login) {
+    repositories(first: $first, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        name
+        owner {
+          login
+        }
+        mergeCommitAllowed
+        squashMergeAllowed
+        rebaseMergeAllowed
+        autoMergeAllowed
+      }
+    }
+  }
+}
+GRAPHQL
+
+  local all_repos="[]"
+  local after_cursor=""
+  local first=100
 
   while true; do
-    # Check if we should exit
     [ "$SHOULD_EXIT" -eq 1 ] && break
 
-    local body
-    body=$(curl -s --max-time 30 -H "Authorization: token $GITHUB_TOKEN" \
-      "https://api.github.com/user/repos?per_page=$per_page&page=$page")
+    # Build variables JSON
+    local variables_json
+    if [ -n "$after_cursor" ]; then
+      variables_json=$(jq -n \
+        --arg login "$owner" \
+        --argjson first "$first" \
+        --arg after "$after_cursor" \
+        '{login: $login, first: $first, after: $after}')
+    else
+      variables_json=$(jq -n \
+        --arg login "$owner" \
+        --argjson first "$first" \
+        '{login: $login, first: $first}')
+    fi
 
-    # Check if we should exit after curl
+    # Execute GraphQL query
+    local response
+    response=$(execute_graphql_query "$QUERY" "$variables_json")
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+
     [ "$SHOULD_EXIT" -eq 1 ] && break
 
+    # Extract repos from response
+    local repos
+    repos=$(echo "$response" | jq '.data.repositoryOwner.repositories.nodes // []')
+
+    # Check if we got any repos
     local repo_count
-    repo_count=$(echo "$body" | jq '. | length')
-    if [ -z "$repo_count" ] || [ "$repo_count" = "0" ] || [ "$repo_count" = "null" ]; then
+    repo_count=$(echo "$repos" | jq '. | length')
+    if [ "$repo_count" -eq 0 ]; then
       break
     fi
 
-    # NOTE: Avoid a pipeline into `while` here; that runs the loop in a subshell and
-    # breaks exit/interrupt handling and control flow.
-    while IFS='|' read -r repo owner; do
-      [ "$SHOULD_EXIT" -eq 1 ] && break
-      process_repo "$repo" "$owner" || break
-    done < <(echo "$body" | jq -r '.[] | "\(.full_name)|\(.owner.login)"')
+    # Merge repos into all_repos
+    all_repos=$(echo "$all_repos" "$repos" | jq -s 'add')
 
+    # Check pagination info
+    local has_next_page
+    has_next_page=$(echo "$response" | jq -r '.data.repositoryOwner.repositories.pageInfo.hasNextPage')
+    after_cursor=$(echo "$response" | jq -r '.data.repositoryOwner.repositories.pageInfo.endCursor // ""')
+
+    if [ "$has_next_page" != "true" ] || [ -z "$after_cursor" ]; then
+      break
+    fi
+  done
+
+  echo "$all_repos"
+}
+
+# Processes repos with their merge strategies
+# Takes JSON array of repos with name, owner.login, and merge strategy flags
+process_repos_with_strategies() {
+  local repos_json=$1
+
+  while IFS= read -r line; do
     [ "$SHOULD_EXIT" -eq 1 ] && break
 
-    if [ "$repo_count" -lt "$per_page" ]; then
-      break
-    fi
+    # Parse the line: full_name|owner|squash|merge|rebase
+    IFS='|' read -r repo owner allow_squash_merge allow_merge_commit allow_rebase_merge <<< "$line"
 
-    page=$((page + 1))
-  done
+    # Trim leading/trailing whitespace
+    repo=$(echo "$repo" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    owner=$(echo "$owner" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    allow_squash_merge=$(echo "$allow_squash_merge" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    allow_merge_commit=$(echo "$allow_merge_commit" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    allow_rebase_merge=$(echo "$allow_rebase_merge" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    process_repo "$repo" "$owner" "$allow_squash_merge" "$allow_merge_commit" "$allow_rebase_merge" || break
+  done < <(echo "$repos_json" | jq -r '.[] | 
+    "\(.owner.login)/\(.name)|\(.owner.login)|\(
+      if .squashMergeAllowed == null then false else .squashMergeAllowed end
+    )|\(
+      if .mergeCommitAllowed == null then false else .mergeCommitAllowed end
+    )|\(
+      if .rebaseMergeAllowed == null then false else .rebaseMergeAllowed end
+    )"')
+}
+
+fetch_all_repos() {
+  # Fetch all repos with merge strategies using GraphQL
+  local repos_json
+  repos_json=$(fetch_repos_with_strategies "$GITHUB_USER")
+  if [ $? -ne 0 ]; then
+    echo "❌ Failed to fetch repos" >&2
+    return 1
+  fi
+
+  if [ -z "$repos_json" ] || [ "$repos_json" = "[]" ]; then
+    echo "❌ No repos found" >&2
+    return 0
+  fi
+
+  # Process repos with their merge strategies
+  process_repos_with_strategies "$repos_json"
 }
 
 is_number() {
@@ -212,9 +387,13 @@ parse_args() {
         SLEEP_SECS="$2"
         shift 2
         ;;
+      -f|--force)
+        FORCE_FLAG=1
+        shift
+        ;;
       *)
         echo "❌ Error: Unknown option: $1"
-        echo "Usage: $0 [--sleep SECONDS]"
+        echo "Usage: $0 [--sleep SECONDS] [--force]"
         exit 1
         ;;
     esac
@@ -232,11 +411,17 @@ main() {
   echo "0" > "$SUCCESS_COUNT_FILE"
   echo "0" > "$SKIP_COUNT_FILE"
   echo "0" > "$FAILED_COUNT_FILE"
+  echo "0" > "$ALREADY_SQUASH_ONLY_COUNT_FILE"
 
   echo "Updating all your repos to Squash Only!"
   echo "→ Disables merge commits"
   echo "→ Disables rebase merges"
   echo "→ Enables squash merges"
+  if [ "$FORCE_FLAG" -eq 1 ]; then
+    echo "→ Force mode: processing all repos (including already squash-only)"
+  else
+    echo "→ Skipping repos that are already squash-only (use --force to process all)"
+  fi
 
   echo "→ Logging in to GitHub…"
   GITHUB_TOKEN=$(get_github_token)
@@ -271,8 +456,14 @@ main() {
   SUCCESS_COUNT=$(cat "$SUCCESS_COUNT_FILE")
   SKIP_COUNT=$(cat "$SKIP_COUNT_FILE")
   FAILED_COUNT=$(cat "$FAILED_COUNT_FILE")
+  ALREADY_SQUASH_ONLY_COUNT=$(cat "$ALREADY_SQUASH_ONLY_COUNT_FILE")
   echo "  ✅ Successfully updated: $SUCCESS_COUNT"
-  echo "  ⏭️  Skipped: $SKIP_COUNT"
+  if [ "$ALREADY_SQUASH_ONLY_COUNT" -gt 0 ]; then
+    echo "  ⏭️  Already squash-only (skipped): $ALREADY_SQUASH_ONLY_COUNT"
+  fi
+  if [ "$SKIP_COUNT" -gt 0 ]; then
+    echo "  ⏭️  Skipped (not owned by you): $SKIP_COUNT"
+  fi
   if [ "$FAILED_COUNT" -gt 0 ]; then
     echo "  ❌ Failed: $FAILED_COUNT"
   fi
