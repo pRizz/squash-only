@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Recommended for OIDC authentication
+          node-version: '24' # Recommended for OIDC authentication
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
