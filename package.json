@@ -3,7 +3,7 @@
   "version": "3.0.4",
   "description": "Scripts for making all your repos on GitHub Squash Only!",
   "bin": {
-    "squash-only": "./bin/squash-only.js"
+    "squash-only": "bin/squash-only.js"
   },
   "files": [
     "bin",
