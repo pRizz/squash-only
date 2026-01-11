@@ -205,6 +205,14 @@ npx github:pRizz/squash-only --force --sleep 0.5
 - ⏱️ **Performance metrics** - Displays elapsed time
 - 🛡️ **Error handling** - Validates inputs and provides clear error messages
 
+## Technical Details
+
+This script uses a hybrid approach for GitHub API access:
+
+- **GraphQL API** - Used to fetch repositories and their merge strategies in a single, efficient query with cursor-based pagination. This allows us to retrieve all repository information and merge strategy settings in fewer API calls.
+
+- **REST API** - Used to update repository merge strategies. As of January 11, 2026, the GitHub GraphQL API does not support mutations for repository merge strategy settings, so the REST API is required for this operation. Therefore, we must call the REST endpoint for each repository individually to update its merge strategy settings.
+
 ## Output
 
 The script provides:
