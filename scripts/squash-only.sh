@@ -14,6 +14,12 @@ ALREADY_SQUASH_ONLY_COUNT_FILE=$(mktemp)
 # Flag to force processing all repos even if they already have squash-only enabled
 FORCE_FLAG=0
 
+# Verbose output (prints a full line for skipped repos)
+VERBOSE_FLAG=0
+
+# When not verbose, we print compact skip indicators (dots) without newlines.
+IN_COMPACT_SKIP_LINE=0
+
 cleanup() {
   rm -f "$SUCCESS_COUNT_FILE" "$SKIP_COUNT_FILE" "$FAILED_COUNT_FILE" "$ALREADY_SQUASH_ONLY_COUNT_FILE"
 }
@@ -28,9 +34,36 @@ handle_exit() {
 
   SHOULD_EXIT=1
   echo ""
+  IN_COMPACT_SKIP_LINE=0
   echo "⚠️  Interrupted. Finishing current step then stopping..."
 }
 trap handle_exit INT TERM
+
+maybe_end_compact_skip_line() {
+  if [ "${IN_COMPACT_SKIP_LINE:-0}" -eq 1 ]; then
+    echo ""
+    IN_COMPACT_SKIP_LINE=0
+  fi
+}
+
+print_compact_skip_indicator() {
+  # Print a dot to indicate a skipped repo without spamming the terminal.
+  printf "."
+  IN_COMPACT_SKIP_LINE=1
+}
+
+print_skip_repo() {
+  local repo=$1
+  local reason=$2
+
+  if [ "$VERBOSE_FLAG" -eq 1 ]; then
+    echo "────────────────────────────────────"
+    echo "⏭️  Skipping repo: $repo ($reason)"
+    return 0
+  fi
+
+  print_compact_skip_indicator
+}
 
 require_cmd() {
   local cmd=$1
@@ -142,20 +175,19 @@ process_repo() {
   fi
 
   if [ "$owner" != "$GITHUB_USER" ]; then
-    echo "────────────────────────────────────"
-    echo "⏭️  Skipping repo: $repo (owned by $owner)"
+    print_skip_repo "$repo" "owned by $owner"
     increment_counter "$SKIP_COUNT_FILE"
     return 0
   fi
 
   # Check if repo already has squash-only enabled
   if [ "$FORCE_FLAG" -eq 0 ] && is_squash_only "$allow_squash_merge" "$allow_merge_commit" "$allow_rebase_merge"; then
-    echo "────────────────────────────────────"
-    echo "⏭️  Skipping repo: $repo (already squash-only)"
+    print_skip_repo "$repo" "already squash-only"
     increment_counter "$ALREADY_SQUASH_ONLY_COUNT_FILE"
     return 0
   fi
 
+  maybe_end_compact_skip_line
   echo "────────────────────────────────────"
   if [ "$FORCE_FLAG" -eq 1 ] && is_squash_only "$allow_squash_merge" "$allow_merge_commit" "$allow_rebase_merge"; then
     echo "Updating repo: $repo (forced, already squash-only)"
@@ -391,9 +423,13 @@ parse_args() {
         FORCE_FLAG=1
         shift
         ;;
+      -v|--verbose)
+        VERBOSE_FLAG=1
+        shift
+        ;;
       *)
         echo "❌ Error: Unknown option: $1"
-        echo "Usage: $0 [--sleep SECONDS] [--force]"
+        echo "Usage: $0 [--sleep SECONDS] [--force] [--verbose]"
         exit 1
         ;;
     esac
@@ -445,6 +481,8 @@ main() {
   START_TIME=$(date +%s)
   fetch_all_repos
   END_TIME=$(date +%s)
+
+  maybe_end_compact_skip_line
 
   ELAPSED=$((END_TIME - START_TIME))
   ELAPSED_MIN=$((ELAPSED / 60))

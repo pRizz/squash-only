@@ -194,6 +194,7 @@ npx github:pRizz/squash-only --force --sleep 0.5
 
 - `-s, --sleep SECONDS` - Set the sleep interval between API requests (default: 0.1 seconds). This delay helps prevent triggering GitHub's rate limits. Authenticated requests (OAuth or PAT) are limited to ~5,000 requests per hour per user or app. See [GitHub's API rate limits documentation](https://github.com/orgs/community/discussions/163553) for more details.
 - `-f, --force` - Process all repositories, including those already configured for squash-only (default: skip already configured repos)
+- `-v, --verbose` - Print per-repo skip lines (default: skipped repos render as compact dots to reduce output spam)
 
 ## Features
 
